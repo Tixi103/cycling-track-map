@@ -65,6 +65,13 @@
   /** 超过这个数量的可见轨迹就关闭地图上的交互，避免鼠标移动被命中测试拖慢 */
   var INTERACTIVE_LIMIT = 60;
 
+  /**
+   * 还没有任何轨迹时的默认视野。
+   * 取中国地理中心的附近（甘肃一带），缩放级别刚好能看到全国轮廓 ——
+   * 这个工具的用户几乎都在国内，一打开就能认出自家的位置。
+   */
+  var DEFAULT_VIEW = { center: [34.5, 108.9], zoom: 4 };
+
   var COLORS = {
     dimmed: '#8f8f8a',
     halo: '#12100e'
@@ -294,6 +301,13 @@
     map.on('click', function () {
       if (listeners.onMapClick) listeners.onMapClick();
     });
+
+    // 必须显式给一次中心和缩放。
+    // Leaflet 在没设过之前处于「未加载」状态：瓦片一张都不会去请求，
+    // 画面是一片空白灰，连 getCenter() 都会直接抛 "Set map center and zoom first"。
+    // 首次打开、还有没导入任何轨迹时走的就是这条路 ——
+    // 下面这个默认视野会很快被 fitAll 覆盖掉（只要有一条轨迹）。
+    map.setView(DEFAULT_VIEW.center, DEFAULT_VIEW.zoom, { animate: false });
 
     // 容器如果在创建时尺寸为 0（面板还在布局），Leaflet 会按 0 尺寸初始化，
     // 之后所有瓦片都会错位。延迟一帧补一次尺寸刷新。

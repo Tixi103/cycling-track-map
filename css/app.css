@@ -462,6 +462,61 @@ body {
   .topbar-right { margin-left: auto; }
 }
 
+/* ── 手机（竖屏）─────────────────────────────────────────
+   窄屏下顶栏里的控件既不会换行、也不肯收缩，会直接顶出屏幕外，
+   表现是右侧内容被裁掉一大截。这里让每个容器都能换行、
+   每个控件都能收缩，并且把不太常用的东西收窄。 */
+@media (max-width: 620px) {
+  .topbar {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .brand { flex: 1 1 auto; min-width: 0; }
+  .brand-text { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* 存储徽标在手机上只留两三个字，完整说明放进 title 里 */
+  .badge { font-size: 11px; padding: 3px 7px; }
+
+  .topbar-center,
+  .topbar-right {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .topbar-center { order: 3; }
+  .topbar-right { order: 4; }
+
+  /* 关键：允许收缩。flex 项默认 min-width:auto，不加这行就永远撑破容器 */
+  .field { min-width: 0; flex: 1 1 150px; }
+  .field-label { flex: none; }
+  .select {
+    min-width: 0;
+    width: 100%;
+    flex: 1 1 auto;
+    font-size: 12.5px;
+    padding: 6px 6px;
+  }
+
+  .btn { padding: 7px 10px; font-size: 12.5px; }
+  .topbar-right .btn { flex: 1 1 auto; }
+
+  /* 地图略矮一点，把上传区和统计露出来 */
+  .layout { grid-template-rows: minmax(200px, 36vh) auto auto; }
+  .panel-left { max-height: 46vh; }
+  .panel-right { max-height: 60vh; }
+
+  /* 手机上纵向空间紧张，上传区的图标是纯装饰，省掉它 */
+  .dropzone { margin: 10px; padding: 12px 12px; }
+  .dropzone-icon { display: none; }
+  .dropzone-sub { margin-bottom: 9px; }
+  .dropzone-hint { margin-top: 9px; font-size: 11px; }
+  .panel-head { padding: 9px 12px 7px; }
+  .stats { padding: 0 12px 6px; }
+  .stat-hero-value { font-size: 26px; }
+}
+
 /* 尊重系统的「减少动态效果」设置 */
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }

@@ -144,6 +144,13 @@ async function main() {
   console.log(rd.summary.replace('SUMMARY', '').replace(/\|/g, ' ').trim());
   results.push(rd);
 
+  // ── 7. 手机端布局（窄屏才会暴露的问题）──
+  process.stdout.write('手机端布局 …  ');
+  const e = await run(node, [path.join(__dirname, 'mobile-test.js')]);
+  const re = summarize('手机端布局', e.out);
+  console.log(re.summary.replace('SUMMARY', '').replace(/\|/g, ' ').trim());
+  results.push(re);
+
   // ── 汇总 ──
   let failed = 0;
   console.log('');
