@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>骑行轨迹地图 —— 把骑过的路画在地图上</title>
+
+<!-- leaflet.css 必须作为独立文件加载，不能内联进 <style>。
+     它内部的 background-image 用的是相对路径 images/marker-icon.png，
+     CSS 里的相对地址是相对样式表自身解析的，内联后会变成相对 HTML 解析，
+     图标会全部裂掉。lib/leaflet/images/ 目录也不要移动。 -->
+<link rel="stylesheet" href="lib/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark"></span>
+    <span class="brand-text">骑行轨迹地图</span>
+  </div>
+
+  <div class="topbar-center">
+    <label class="field">
+      <span class="field-label">底图</span>
+      <select id="basemap-select" class="select"></select>
+    </label>
+    <label class="field">
+      <span class="field-label">配色</span>
+      <select id="color-mode" class="select"></select>
+    </label>
+    <button id="btn-heatmap" class="btn btn-ghost" type="button" title="把所有轨迹渲染成密度图，颜色越深表示骑过的次数越多">热力图</button>
+    <button id="btn-fit-all" class="btn btn-ghost" type="button">查看全部</button>
+  </div>
+
+  <div class="topbar-right">
+    <span id="storage-badge" class="badge badge-muted" title="">存储</span>
+    <button id="btn-clear" class="btn btn-ghost" type="button">清空</button>
+    <button id="btn-export" class="btn btn-ghost" type="button">导出备份</button>
+    <button id="btn-import-json" class="btn btn-ghost" type="button">导入备份</button>
+    <button id="btn-import" class="btn btn-primary" type="button">添加轨迹</button>
+  </div>
+</header>
+
+<div id="notice-area" class="notice-area" aria-live="polite"></div>
+
+<main class="layout">
+
+  <!-- ── 左栏：上传 + 轨迹列表（列表同时充当图例） ── -->
+  <aside class="panel panel-left">
+    <div id="dropzone" class="dropzone">
+      <div class="dropzone-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 17v2a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-2"/>
+        </svg>
+      </div>
+      <div class="dropzone-title">把轨迹文件拖到这里</div>
+      <div class="dropzone-sub">支持 .gpx / .tcx / .kml，可一次拖多个</div>
+      <button id="btn-browse" class="btn btn-outline" type="button">选择文件</button>
+      <button id="btn-browse-dir" class="btn btn-outline" type="button" hidden>选择文件夹</button>
+      <div class="dropzone-hint">文件只在你自己的电脑上解析，不会上传到任何服务器</div>
+    </div>
+
+    <div class="panel-head">
+      <span class="panel-title">轨迹列表</span>
+      <span id="track-count" class="panel-count">0 条</span>
+    </div>
+
+    <div id="track-list" class="track-list"></div>
+
+    <div id="list-empty" class="list-empty">
+      还没有轨迹。<br>从华为运动健康的「运动记录 → 轨迹 → 导出路线文件」导出后拖进来即可。
+    </div>
+  </aside>
+
+  <!-- ── 中间：地图 ── -->
+  <section class="map-wrap">
+    <div id="map" class="map"></div>
+    <div id="map-hint" class="map-hint">正在加载底图…</div>
+  </section>
+
+  <!-- ── 右栏：统计与剖面 ── -->
+  <aside class="panel panel-right">
+    <div class="panel-head">
+      <span class="panel-title">统计</span>
+      <span id="stats-scope" class="panel-count">全部轨迹</span>
+    </div>
+    <div id="stats" class="stats"></div>
+
+    <div id="profile-section" class="profile-section" hidden>
+      <div class="panel-head">
+        <span class="panel-title">海拔与速度</span>
+        <label class="field field-inline">
+          <input type="checkbox" id="chk-gradient" class="checkbox">
+          <span class="field-label">按速度着色</span>
+        </label>
+      </div>
+      <div id="profile" class="profile"></div>
+    </div>
+
+    <div id="replay-section" class="replay-section" hidden>
+      <div class="panel-head">
+        <span class="panel-title">轨迹回放</span>
+        <span id="replay-time" class="panel-count">--:--</span>
+      </div>
+      <div class="replay-controls">
+        <button id="btn-replay-play" class="btn btn-primary btn-icon" type="button">播放</button>
+        <input type="range" id="replay-seek" class="range" min="0" max="1000" value="0" step="1">
+        <label class="field field-inline">
+          <span class="field-label">倍速</span>
+          <select id="replay-speed" class="select select-sm">
+            <option value="1">1x</option>
+            <option value="2">2x</option>
+            <option value="4">4x</option>
+            <option value="8">8x</option>
+            <option value="16" selected>16x</option>
+            <option value="32">32x</option>
+            <option value="64">64x</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  </aside>
+
+</main>
+
+<!-- 隐藏的文件输入 -->
+<input type="file" id="file-input" accept=".gpx,.tcx,.kml,.xml,application/gpx+xml" multiple hidden>
+<input type="file" id="dir-input" webkitdirectory directory multiple hidden>
+<input type="file" id="json-input" accept=".json,application/json" hidden>
+
+<!--
+  ⚠ 脚本加载顺序是硬约束，不是风格问题。
+    js/parsers.js 的 IIFE 顶部写着 `var X = global.XmlUtil; var Geo = global.Geo;`，
+    它在**加载时刻**就捕获了这两个全局引用，所以 xmlutil.js 与 geo.js
+    必须排在 parsers.js 前面，否则解析层会静默崩溃（X 为 undefined）。
+
+  全部用 defer 而不是 type="module"：
+    - defer 保证按文档顺序执行、且在 DOM 解析完成后执行，file:// 下完全正常；
+    - type="module" 在 file:// 下会被 CORS 直接拦死。
+-->
+<script defer src="lib/leaflet/leaflet.js"></script>
+<script defer src="js/xmlutil.js"></script>
+<script defer src="js/geo.js"></script>
+<script defer src="js/coord.js"></script>
+<script defer src="js/parsers.js"></script>
+<script defer src="js/store.js"></script>
+<script defer src="js/basemaps.js"></script>
+<script defer src="js/format.js"></script>
+<script defer src="js/mapview.js"></script>
+<script defer src="js/tracks.js"></script>
+<script defer src="js/ui.js"></script>
+<script defer src="js/profile.js"></script>
+<script defer src="js/replay.js"></script>
+<script defer src="js/app.js"></script>
+
+</body>
+</html>

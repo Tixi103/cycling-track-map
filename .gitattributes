@@ -1,0 +1,11 @@
+# 统一换行符，避免 Windows / macOS / Linux 协作时整个文件被标记为改动。
+#
+# 默认全部按 LF 存进版本库（GitHub 上也更好看差异）；
+# 但 .bat 是例外 —— Windows 的 cmd.exe 对 LF 结尾的批处理容忍度不好，
+# 少数情况下会解析出错，所以检出时必须是 CRLF。
+* text=auto eol=lf
+*.bat text eol=crlf
+
+# 这些是二进制，不要做换行转换，也不要试图算文本差异
+*.png binary
+*.zip binary

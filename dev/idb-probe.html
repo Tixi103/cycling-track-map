@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>IndexedDB 可用性探针</title>
+</head>
+<body>
+<pre id="out">pending</pre>
+
+<script>
+/*!
+ * IndexedDB 可用性探针
+ *
+ * 由 dev/probe-realtime.js 在**真实时间**下调用 —— 不能用 --virtual-time-budget，
+ * 那会把「等磁盘 I/O」误判成「超时」。
+ *
+ * 用法：
+ *   node dev/probe-realtime.js "<url>" "runProbe()" 12000
+ */
+window.runProbe = function () {
+  var t0 = Date.now();
+  var out = {
+    protocol: location.protocol,
+    origin: String(location.origin),
+    hasIndexedDB: (typeof indexedDB !== 'undefined')
+  };
+
+  return new Promise(function (resolve) {
+    var settled = false;
+
+    // 同时探一下 localStorage 作对照（它是同步的，不受虚拟时间影响）
+    try {
+      localStorage.setItem('__probe_k__', '1');
+      localStorage.removeItem('__probe_k__');
+      out.localStorage = 'ok';
+    } catch (e) {
+      out.localStorage = 'FAIL:' + e.name;
+    }
+
+    function done(extra) {
+      if (settled) return;
+      settled = true;
+      out.elapsedMs = Date.now() - t0;
+      for (var k in extra) out[k] = extra[k];
+      document.getElementById('out').textContent = JSON.stringify(out);
+      resolve(out);
+    }
+
+    var timer = setTimeout(function () {
+      done({ idb: 'TIMEOUT' });
+    }, 10000);
+
+    try {
+      // 每次跑用不同的库名并先删掉，保证一定能走到 onupgradeneeded
+      // （否则第二次运行库已存在，storeNames 会是 0，看起来像失败）
+      var del = indexedDB.deleteDatabase('__probe_db__');
+      var opened = false;
+      del.onsuccess = del.onerror = del.onblocked = function () { openNow(); };
+      setTimeout(function () { if (!opened) openNow(); }, 1500);
+
+      function openNow() {
+        if (opened) return;
+        opened = true;
+        var req;
+        try {
+          req = indexedDB.open('__probe_db__', 1);
+        } catch (e) {
+          clearTimeout(timer);
+          done({ idb: 'OPEN_THROW:' + e.name });
+          return;
+        }
+
+        req.onupgradeneeded = function (ev) {
+          out.upgraded = true;
+          ev.target.result.createObjectStore('t', { keyPath: 'id' });
+        };
+        req.onblocked = function () { out.blocked = true; };
+        req.onerror = function () {
+          clearTimeout(timer);
+          done({ idb: 'ERROR:' + (req.error && req.error.name) });
+        };
+        req.onsuccess = function () {
+          var db = req.result;
+          out.storeNames = db.objectStoreNames.length;
+
+          // 不只是能打开 —— 真写一条再读回来，确认读写都通
+          try {
+            var tx = db.transaction('t', 'readwrite');
+            tx.objectStore('t').put({ id: 1, v: 'hello' });
+            tx.oncomplete = function () {
+              var tx2 = db.transaction('t', 'readonly');
+              var g = tx2.objectStore('t').get(1);
+              g.onsuccess = function () {
+                out.readBack = g.result && g.result.v;
+                out.rw = (out.readBack === 'hello') ? 'ok' : 'MISMATCH';
+                try { db.close(); } catch (e3) { /* 忽略 */ }
+                clearTimeout(timer);
+                done({ idb: 'OK' });
+              };
+              g.onerror = function () {
+                out.rw = 'GET_FAIL';
+                clearTimeout(timer);
+                done({ idb: 'OK' });
+              };
+            };
+            tx.onerror = function () {
+              out.rw = 'TX_FAIL:' + (tx.error && tx.error.name);
+              clearTimeout(timer);
+              done({ idb: 'OK' });
+            };
+          } catch (e2) {
+            out.rw = 'FAIL:' + e2.name;
+            clearTimeout(timer);
+            done({ idb: 'OK' });
+          }
+        };
+      }
+    } catch (e) {
+      clearTimeout(timer);
+      done({ idb: 'THROW:' + e.name + ':' + e.message });
+    }
+  });
+};
+</script>
+</body>
+</html>

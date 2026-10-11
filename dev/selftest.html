@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>解析层自检 —— 骑行轨迹地图可视化专家</title>
+<style>
+  body { font: 13px/1.6 Consolas, "Courier New", monospace; margin: 16px; background: #fafafa; color: #222; }
+  h1 { font-size: 16px; font-family: system-ui, sans-serif; }
+  pre { white-space: pre-wrap; word-break: break-all; }
+  .note { color: #666; font-family: system-ui, sans-serif; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<h1>解析层自检</h1>
+<p class="note">这个页面不给人看，是给无头浏览器跑的。断言结果会写进下面的 pre，
+   用 <code>msedge --headless=new --dump-dom --virtual-time-budget=8000 dev/selftest.html</code> 抓取。</p>
+
+<pre id="log">RUNNING</pre>
+
+<!-- 数据层：顺序是硬约束。parsers.js 在 IIFE 顶部就捕获了 global.XmlUtil 与 global.Geo，
+     这两个必须排在它前面，否则解析层会静默崩溃。 -->
+<script src="../js/xmlutil.js"></script>
+<script src="../js/geo.js"></script>
+<script src="../js/coord.js"></script>
+<script src="../js/parsers.js"></script>
+
+<!-- 样本（由 dev/make-sample.js 生成）与测试逻辑都必须是外部脚本，
+     否则 --dump-dom 会把内联内容整个吐出来，输出几十万行 -->
+<script src="samples/samples.js"></script>
+<script src="samples/sample-meta.js"></script>
+<script src="selftest.js"></script>
+</body>
+</html>
